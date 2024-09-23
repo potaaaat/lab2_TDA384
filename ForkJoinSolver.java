@@ -4,10 +4,14 @@ import amazed.maze.Maze;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.*;
 
 /**
  * <code>ForkJoinSolver</code> implements a solver for
@@ -34,16 +38,6 @@ public class ForkJoinSolver
         initStructures();
     }
     
-    protected voit initStructures() {
-    	visited = new concurrentSkipListSet<int>();
-    	//atomic boolean
-    	heartFound = new AtomicBoolean(boolean false); //if a thread has found the goal this value will chnge to true
-    	//if true the other threads need to be terminated: TODO the termination function. 
-    	predecessor = new HashMap<>();
-    	frontier = new Stack<>();
-    	
-    }
-
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal, forking after a given number of visited
@@ -59,7 +53,25 @@ public class ForkJoinSolver
     {
         this(maze);
         this.forkAfter = forkAfter;
+        initStructures();
     }
+    
+    protected void initStructures() {
+    	visited = new ConcurrentSkipListSet<Integer>();
+    	//atomic boolean to keep track of when we want to terminate all threads when the goal has been found.
+    	heartFound = new AtomicBoolean(false); //if a thread has found the goal this value will chnge to true
+    	//if true the other threads need to be terminated: TODO the termination function. 
+    	predecessor = new HashMap<>();
+    	frontier = new Stack<>();
+    	
+    }
+
+    protected ConcurrentSkipListSet<Integer> visited;
+    protected int forkAfter = 0;
+    protected AtomicBoolean heartFound;
+    protected Map<Integer, Integer> predecessor;
+    protected Stack<Integer> frontier;
+    /**
 
     /**
      * Searches for and returns the path, as a list of node
@@ -100,8 +112,8 @@ public class ForkJoinSolver
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
-            if (!visited.contains(current)) { //visited == nodes already checked
-                // move player to current node
+            if (visited.add(current)) { //visited == nodes already checked. if current is already in the set visited.add() will return false.
+            	// move player to current node
                 maze.move(player, current);
                 // mark node as visited
                 visited.add(current);
@@ -110,9 +122,9 @@ public class ForkJoinSolver
                     // add nb to the nodes to be processed
                     frontier.push(nb);
                     
-                    if (frontier.length() > 1) {
-                    	maze.newPlayer()
-                    }
+//                    if (frontier.length() > 1) {//IDK what this is, but it is giving errors, so I'm commeting this away
+//                    	maze.newPlayer();
+//                    }
                     // if nb has not been already visited,
                     // nb can be reached from current (i.e., current is nb's predecessor)
                     if (!visited.contains(nb))
@@ -123,5 +135,19 @@ public class ForkJoinSolver
         }
         // all nodes explored, no goal found
         return null;
+    }
+    
+    protected List<Integer> pathFromTo(int from, int to) {//had to put this here, otherwise the program complained that predecessor was Null
+        List<Integer> path = new LinkedList<>();
+        Integer current = to;
+        while (current != from) {
+            path.add(current);
+            current = predecessor.get(current);
+            if (current == null)
+                return null;
+        }
+        path.add(from);
+        Collections.reverse(path);
+        return path;
     }
 }
