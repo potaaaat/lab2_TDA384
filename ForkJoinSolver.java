@@ -56,15 +56,15 @@ public class ForkJoinSolver
         initStructures();
     }
     
-    public ForkJoinSolver(Maze maze, int forkAfter, int startNode, ConcurrentSkipListSet<Integer> visited, AtomicBoolean heartFound)
+    public ForkJoinSolver(Maze maze, int forkAfter, int startNode, ConcurrentSkipListSet<Integer> visited, AtomicBoolean heartFound, HashMap<Integer, Integer> predecessor, Stack<Integer> frontier)
     {
         this(maze);
         this.forkAfter = forkAfter;
         this.start = startNode;
         this.visited = visited;
         this.heartFound = heartFound;
-        this.predecessor = new HashMap<>();//new predesseor and frontier because different players are walking different paths
-    	this.frontier = new Stack<>();//no work stealing is implemented right now
+        this.predecessor = predecessor; //TODO: maybe make it local again? unsure. frontier gets very overloaded. not seen as a hash map by program
+    	this.frontier = frontier;//no work stealing is implemented right now
         
     }
     
@@ -73,7 +73,7 @@ public class ForkJoinSolver
     	//atomic boolean to keep track of when we want to terminate all threads when the goal has been found.
     	heartFound = new AtomicBoolean(false); //if a thread has found the goal this value will chnge to true
     	//if true the other threads need to be terminated: TODO the termination function. 
-    	predecessor = new HashMap<>();
+    	predecessor = new HashMap<>(); 
     	frontier = new Stack<>();
     	
     }
@@ -81,7 +81,7 @@ public class ForkJoinSolver
     protected ConcurrentSkipListSet<Integer> visited;
     protected int forkAfter = 0;
     protected AtomicBoolean heartFound;
-    protected Map<Integer, Integer> predecessor;
+    protected HashMap<Integer, Integer> predecessor;
     protected Stack<Integer> frontier;
     /**
 
@@ -107,53 +107,58 @@ public class ForkJoinSolver
     
 
     private List<Integer> parallelSearch()
-    {
+    {	
     	int player = maze.newPlayer(start);
         // start with start node
     	//Frontier are the nodes not visited/ next boxes to go into
         frontier.push(start); 			//keep start where we have 1 player and put the start box in frontier
         // as long as not all nodes have been processed
-        while (!frontier.empty()) { //not all nodes have been explored
-            // get the new node to process
-            int current = frontier.pop();
-            // if current node has a goal
-            if (maze.hasGoal(current)) { //add a func to cancel all other threads if goal is found
-                // move player to goal
-                maze.move(player, current);
-                // search finished: reconstruct and return path
-                return pathFromTo(start, current);
-            }
-            // if current node has not been visited yet
-            if (visited.add(current)) { //visited == nodes already checked. if current is already in the set visited.add() will return false.
-            	// move player to current node
-                maze.move(player, current);
-                // mark node as visited
-                visited.add(current);
-                // for every node nb adjacent to current
-                int i = 0;
-                for (int nb: maze.neighbors(current)) {//need to create threads here
-                    // add nb to the nodes to be processed
-                    frontier.push(nb);
-                    i++;
-                    // if nb has not been already visited,
-                    // nb can be reached from current (i.e., current is nb's predecessor)
-                    if (!visited.contains(nb))
-                        predecessor.put(nb, current);
-                }
-                if(frontier.size() < 2) {               	
-                }
-                else {                	
-                ForkJoinSolver onePath = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.heartFound);
-            	onePath.fork();
-            	ForkJoinSolver anotherPath = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.heartFound);
-            	anotherPath.fork();
-            	
-            	onePath.join();
-            	anotherPath.join();}
-                //if no more nb the thread should be terminated
-            }
-        }
-        // all nodes explored, no goal found
+        while (!frontier.empty()) { //not all nodes have been explored  TODO: if forks are added and can work steal the frontier is not uppdated fast enough
+        	if(heartFound.get()==true) {break;} //going for a full join if the heart is found
+        	if(frontier.size() < forkAfter ) {//condition if maze is forked enough
+	            // get the new node to process
+        		int current = frontier.pop();
+	            //System.out.println(frontier);	PROBLEM SEARCHING            
+		            // if current node has a goal
+		            if (maze.hasGoal(current)) { //add a func to cancel all other threads if goal is found
+		                // move player to goal
+		                maze.move(player, current);
+		                // search finished: reconstruct and return path
+		                heartFound.set(true);
+		                return pathFromTo(start, current);
+		            }
+		            // if current node has not been visited yet
+		            if (visited.add(current)) { //visited == nodes already checked. if current is already in the set visited.add() will return false.
+		            	// move player to current node
+		                maze.move(player, current);
+		                // mark node as visited
+		                visited.add(current);
+		                // for every node nb adjacent to current
+		                
+		                for (int nb: maze.neighbors(current)) {//need to create threads here
+		                    // add nb to the nodes to be processed
+		                    frontier.push(nb);
+		                    // if nb has not been already visited,
+		                    // nb can be reached from current (i.e., current is nb's predecessor)
+		                    if (!visited.contains(nb))
+		                        predecessor.put(nb, current);
+		                }
+		                
+		            }
+		        }                    	
+        	else {
+        	ForkJoinSolver anotherPath = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.heartFound, this.predecessor, this.frontier);
+        	anotherPath.fork();
+        	//We want the parent to idealy continue working. So adding 2 threads is not ideal, I think aiming for 1 added thread is better
+        	//anotherPath.join();
+        	
+        	}
+        	
+        //if no more nb the thread should be terminated
+        // all nodes explored, no goal found}
+        	}
+        //BIGGEST PROBLEM, might want to do a underfunction. Forks need to exit out of the program to join again, once out of the while they stop any possibilities of joining because of the return
+        //join(); //could we use fork join pool?
         return null;
     }
     
