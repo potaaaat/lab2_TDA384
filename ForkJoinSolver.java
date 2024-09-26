@@ -69,6 +69,7 @@ public class ForkJoinSolver
         this.start = this.frontier.pop();
         
     }
+
     
     protected void initStructures() {
     	visited = new ConcurrentSkipListSet<Integer>();
@@ -79,7 +80,7 @@ public class ForkJoinSolver
     	frontier = new ConcurrentLinkedDeque<Integer>();
     	
     }
-
+    protected int player;
     protected ConcurrentSkipListSet<Integer> visited;
     protected int forkAfter = 0;
     protected AtomicBoolean heartFound;
@@ -110,7 +111,7 @@ public class ForkJoinSolver
 
     private List<Integer> parallelSearch()
     {
-    	int player = maze.newPlayer(start);
+    	player = maze.newPlayer(start);
 		// start with start node
     	//Frontier are the nodes not visited/ next boxes to go into
         frontier.push(start); 			//keep start where we have 1 player and put the start box in frontier
@@ -124,28 +125,35 @@ public class ForkJoinSolver
     			for(int i = 0; i < firstHalfSize; i++) {
     				newFrontier.add(frontier.pop());//removes half of the elements from the oroginal frontier and adds them to a new frontier for the new fork
     			}
-
-    			System.out.println(frontier + " aaaaaaaaaaaaaa");
-    			System.out.println(newFrontier + " bbbbbbbbbbbbbbbbbbbbbb");
     			
     			ForkJoinSolver newFork = new ForkJoinSolver(this.maze, this.forkAfter, newFrontier, this.visited, this.predecessor, this.heartFound);
             	newFork.fork();
+            	ForkJoinSolver anotherFork = new ForkJoinSolver(this.maze, this.forkAfter, frontier, this.visited, this.predecessor, this.heartFound);
             	
-            	List<Integer> result = newFork.join();
-            	if(result != null) {
-            		return result;
+            	List<Integer> result2 = anotherFork.parallelSearch();
+            	List<Integer> result1 = newFork.join();
+            	if(result1 != null) {
+            		return result1;
+            	}
+            	
+            	if(result2 != null) {
+            		return result2;
             	}
 
     		}
     		else {
     			System.out.println("playerid " + player + " frontier " + frontier);
+    			if(heartFound.get() == true) {return null;}
 	            // get the new node to process
 	            int current = frontier.pop();
 	            // if current node has a goal
 	            if (maze.hasGoal(current)) { //add a func to cancel all other threads if goal is found
-	                // move player to goal
+	                System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+	            	heartFound.set(true);
+	            	// move player to goal
 	                maze.move(player, current);
 	                // search finished: reconstruct and return path
+	            	System.out.println(predecessor);
 	                return pathFromTo(start, current);
 	            }
 	            // if current node has not been visited yet
@@ -155,26 +163,14 @@ public class ForkJoinSolver
 	                // mark node as visited
 	                visited.add(current);
 	                // for every node nb adjacent to current
-	                int i = 0;
 	                for (int nb: maze.neighbors(current)) {//need to create threads here
 	                    // add nb to the nodes to be processed
 	                    frontier.push(nb);
-	                    i++;
 	                    // if nb has not been already visited,
 	                    // nb can be reached from current (i.e., current is nb's predecessor)
 	                    if (!visited.contains(nb))
 	                        predecessor.put(nb, current);
 	                }
-//    	                if(frontier.size() < 2) {               	
-//    	                }
-//    	                else {                	
-//    	                ForkJoinSolver onePath = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.heartFound);
-//    	            	onePath.fork();
-//    	            	ForkJoinSolver anotherPath = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.heartFound);
-//    	            	anotherPath.fork();
-//    	            	
-//    	            	onePath.join();
-//    	            	anotherPath.join();}
 	                //if no more nb the thread should be terminated
 	            }
     	        	    
@@ -190,7 +186,7 @@ public class ForkJoinSolver
         Integer current = to;
         while (current != from) {
             path.add(current);
-            current = predecessor.get(current);
+            current = this.predecessor.get(current);
             if (current == null)
                 return null;
         }
