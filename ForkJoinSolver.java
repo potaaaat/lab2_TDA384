@@ -67,6 +67,7 @@ public class ForkJoinSolver
         this.heartFound = heartFound;
         this.predecessor = predecessor;//new predesseor and frontier because different players are walking different paths
         this.start = start;
+        frontier = new ConcurrentLinkedDeque<Integer>();
         
     }
 
@@ -107,53 +108,55 @@ public class ForkJoinSolver
     @Override
     public List<Integer> compute()
     {
-        return parallelSearch();
+        forkAfter = 3;
+    	return parallelSearch();
     }
     
 
     private List<Integer> parallelSearch()
     {
-    	player = maze.newPlayer(start);
+    	
+    	//System.out.println("created " + player); 
 		// start with start node
     	//Frontier are the nodes not visited/ next boxes to go into
         ForkJoinSolver fork1 = null;
-        ForkJoinSolver fork2 = null;
+        ForkJoinSolver fork2 = null;      
 //        ForkJoinSolver fork3 = null;
 //        ForkJoinSolver fork4 = null;
-        
-    	frontier.push(start); 			//keep start where we have 1 player and put the start box in frontier
+    	if(!visited.contains(start)){
+    		player = maze.newPlayer(start);
+    		frontier.push(start);}
+    	System.out.println("babys first block " + frontier);
+    	
+    	//keep start where we have 1 player and put the start box in frontier
     	while(!frontier.isEmpty()) {
+    		if(heartFound.get() == true) {break;}
     		if(frontier.size() > forkAfter) {//we want to split the task!
-    			
-            	if(!visited.contains(frontier.getFirst())) {
-            		fork1 = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.predecessor, this.heartFound);
-            		
+    			System.out.println("frontierlist: " + frontier);
+    			int popper = frontier.pop();
+            	if(!visited.contains(popper)) {
+            		fork1 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);            	
             		fork1.fork();}
-            	if(!visited.contains(frontier.getFirst())) {
-            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.predecessor, this.heartFound);
+            	popper = frontier.pop();
+            	if(!visited.contains(popper)) {
+            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
             		fork2.fork();
             		}
-            	//TODO do not remove!!!!!!!!!!!
-//            	if(!visited.contains(frontier.getFirst())) {
-//            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.predecessor, this.heartFound);
+//            	popper = frontier.pop();
+//            	if(!visited.contains(popper)) {
+//            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
 //            		fork3.fork();
-//            		System.out.println("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");}
+//            		}
 //            	if(!visited.contains(frontier.getFirst())) {
 //            		fork4 = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.predecessor, this.heartFound);
 //            		fork4.fork();
-//            		System.out.println("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD");}
-////    			if(result1 != null) {
-//            		return result1;
-//            	}
-//            	
-//            	if(result2 != null) {
-//            		return result2;
-//            	}
+//            		}
+
 
     		}
     		else {
-    			//System.out.println("playerid " + player + " frontier " + frontier);
-    			if(heartFound.get() == true) {break;}
+//    			System.out.println("Trying to move");
+    			
 	            // get the new node to process
 	            int current = frontier.pop();
 	            // if current node has a goal
@@ -186,21 +189,21 @@ public class ForkJoinSolver
     		}
     		
     	}
-    	System.out.println("before join " + player);
-    	 // all nodes explored, no goal found
+    	System.out.println("before join " + player); 
+    	// all nodes explored, no goal found
     	List<Integer> result1 = null;
-    	if(fork1 != null) {result1 = fork1.join();}
-    	
+    	if(fork1 != null) {
+    		result1 = fork1.join();}
+//    	System.out.println("between join " + player);
     	List<Integer> result2 = null;
     	if(fork2 != null) {result2 = fork2.join();}
-    	System.out.println("after join " + player);
+//    	System.out.println("after join " + player);
     	
 //    	List<Integer> result3 = null;
 //    	if(fork3 != null) {result3 = fork3.join();}
 //    	
 //    	List<Integer> result4 = null;
 //    	if(fork4 != null) {result4 = fork4.join();}
-//    	System.out.println("forksjoined");
     	
     	if (result1 != null) {
     		return result1;
@@ -214,9 +217,8 @@ public class ForkJoinSolver
 //    	if (result4 != null) {
 //    		return result4;
 //    	}
-    	System.out.println("null times " + player);
     	
-        return null;
+        return null;	
     }
     
     protected List<Integer> pathFromTo(int from, int to) {//had to put this here, otherwise the program complained that predecessor was Null
