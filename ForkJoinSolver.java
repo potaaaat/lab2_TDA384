@@ -66,8 +66,8 @@ public class ForkJoinSolver
         this.visited = visited;
         this.heartFound = heartFound;
         this.predecessor = predecessor;//new predesseor and frontier because different players are walking different paths
-        this.start = start;
-        frontier = new ConcurrentLinkedDeque<Integer>();
+        this.start = start; //new start position for the thread
+        frontier = new ConcurrentLinkedDeque<Integer>(); //new frontier list for thread
         
     }
 
@@ -79,12 +79,12 @@ public class ForkJoinSolver
     	//if true the other threads need to be terminated: TODO the termination function. 
     	predecessor = new ConcurrentHashMap<>();
     	frontier = new ConcurrentLinkedDeque<Integer>();
-    	beginning = this.start;
+    	beginning = this.start; //the initial start position
     	
     }
     protected int player;
     protected ConcurrentSkipListSet<Integer> visited;
-    protected int forkAfter = 2;
+    protected int forkAfter;
     protected AtomicBoolean heartFound;
     protected ConcurrentHashMap<Integer, Integer> predecessor;
     protected ConcurrentLinkedDeque<Integer> frontier;
@@ -108,7 +108,7 @@ public class ForkJoinSolver
     @Override
     public List<Integer> compute()
     {
-        forkAfter = 3;
+    	forkAfter = 3;
     	return parallelSearch();
     }
     
@@ -117,108 +117,91 @@ public class ForkJoinSolver
     {
     	
     	//System.out.println("created " + player); 
-		// start with start node
-    	//Frontier are the nodes not visited/ next boxes to go into
+    	//define the forks but not do anything with them yet
+    	//if never forked they need to be defined for the joins
         ForkJoinSolver fork1 = null;
         ForkJoinSolver fork2 = null;      
-//        ForkJoinSolver fork3 = null;
-//        ForkJoinSolver fork4 = null;
+
+        //double checking for races before spawning a player
     	if(!visited.contains(start)){
-    		player = maze.newPlayer(start);
-    		frontier.push(start);}
-    	System.out.println("babys first block " + frontier);
+    		player = maze.newPlayer(start); //player is created
+    		frontier.push(start);} //start space is added to frontier
+    	//System.out.println("babys first block " + frontier);
     	
     	//keep start where we have 1 player and put the start box in frontier
     	while(!frontier.isEmpty()) {
+    		
     		if(heartFound.get() == true) {break;}
-    		if(frontier.size() > forkAfter) {//we want to split the task!
-    			System.out.println("frontierlist: " + frontier);
+    		if(frontier.size() > forkAfter) {//if bigger than forkAfter we want to split into more threads
+//    			System.out.println("frontierlist: " + frontier);
     			int popper = frontier.pop();
+    			//frontier node is taken out and checked if it is a node included in visited
             	if(!visited.contains(popper)) {
+            		//if node has not been visited create fork1
             		fork1 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);            	
             		fork1.fork();}
+            	//repeat taking a frontier node to chech if it is a node included in visited
             	popper = frontier.pop();
             	if(!visited.contains(popper)) {
+            		//if so create fork2 
             		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork2.fork();
+            		fork2.fork(); //start fork
             		}
-//            	popper = frontier.pop();
-//            	if(!visited.contains(popper)) {
-//            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-//            		fork3.fork();
-//            		}
-//            	if(!visited.contains(frontier.getFirst())) {
-//            		fork4 = new ForkJoinSolver(this.maze, this.forkAfter, frontier.pop(), this.visited, this.predecessor, this.heartFound);
-//            		fork4.fork();
-//            		}
 
 
     		}
     		else {
 //    			System.out.println("Trying to move");
-    			
 	            // get the new node to process
 	            int current = frontier.pop();
 	            // if current node has a goal
-	            if (maze.hasGoal(current)) { //add a func to cancel all other threads if goal is found
-	            	heartFound.set(true);
+	            if (maze.hasGoal(current)) { 
+	            	heartFound.set(true); //the heart is found, set it as true to start the process of terminating all other threads
 	            	// move player to goal
 	                maze.move(player, current);
 	                // search finished: reconstruct and return path
 	                return pathFromTo(beginning, current);
 	            }
-	            // if current node has not been visited yet
-	            if (visited.add(current)) { //visited == nodes already checked. if current is already in the set visited.add() will return false.
+	            //check if current node is included in visited list, if not it adds the node to visited it goes into the next node procedure
+	            if (visited.add(current)) { 
 	            	// move player to current node
 	            	maze.move(player, current);
-	                // mark node as visited
-	                //visited.add(current);
 	                // for every node nb adjacent to current
-	                for (int nb: maze.neighbors(current)) {//need to create threads here
+	                for (int nb: maze.neighbors(current)) {
 	                    // add nb to the nodes to be processed
 	                    if(!visited.contains(nb)) {frontier.push(nb);}
 	       
 	                    // if nb has not been already visited,
 	                    // nb can be reached from current (i.e., current is nb's predecessor)
 	                    if (!visited.contains(nb))
-	                        predecessor.put(nb, current);
+	                        predecessor.put(nb, current); //add to predecessor map
 	                }
-	                //if no more nb the thread should be terminated
+	               
 	            }
     	        	    
     		}
     		
     	}
     	System.out.println("before join " + player); 
-    	// all nodes explored, no goal found
     	List<Integer> result1 = null;
-    	if(fork1 != null) {
-    		result1 = fork1.join();}
+    	if(fork1 != null) { //has fork1 been created
+    		result1 = fork1.join();}//wait for join on fork1
+    	
 //    	System.out.println("between join " + player);
-    	List<Integer> result2 = null;
-    	if(fork2 != null) {result2 = fork2.join();}
+    	
+    	List<Integer> result2 = null; 
+    	if(fork2 != null) //has fork2 been ceated 
+    		{result2 = fork2.join();} //wait for join on fork2
 //    	System.out.println("after join " + player);
     	
-//    	List<Integer> result3 = null;
-//    	if(fork3 != null) {result3 = fork3.join();}
-//    	
-//    	List<Integer> result4 = null;
-//    	if(fork4 != null) {result4 = fork4.join();}
-    	
-    	if (result1 != null) {
+    	if (result1 != null) { //check if result has heartFound
     		return result1;
     	}
-    	if (result2 != null) {
+    	if (result2 != null) {//check if result has heartFound
     		return result2;
     	}
-//    	if (result3 != null) {
-//    		return result3;
-//    	}
-//    	if (result4 != null) {
-//    		return result4;
-//    	}
     	
-        return null;	
+        return null;	//if no result != heartfound, return null
     }
     
     protected List<Integer> pathFromTo(int from, int to) {//had to put this here, otherwise the program complained that predecessor was Null
