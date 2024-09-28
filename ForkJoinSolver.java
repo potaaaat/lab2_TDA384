@@ -112,6 +112,11 @@ public class ForkJoinSolver
     	return parallelSearch();
     }
     
+    private ForkJoinSolver fork1 = null;
+    private ForkJoinSolver fork2 = null;
+    private ForkJoinSolver fork3 = null;
+    private ForkJoinSolver fork4 = null; 
+    private AtomicBoolean hasForked = new AtomicBoolean(false);
 
     private List<Integer> parallelSearch()
     {
@@ -119,8 +124,7 @@ public class ForkJoinSolver
     	//System.out.println("created " + player); 
     	//define the forks but not do anything with them yet
     	//if never forked they need to be defined for the joins
-        ForkJoinSolver fork1 = null;
-        ForkJoinSolver fork2 = null;      
+
 
         //double checking for races before spawning a player
     	if(!visited.contains(start)){
@@ -132,21 +136,40 @@ public class ForkJoinSolver
     	while(!frontier.isEmpty()) {
     		
     		if(heartFound.get() == true) {break;}
-    		if(frontier.size() > forkAfter) {//if bigger than forkAfter we want to split into more threads
+    		if(frontier.size() > forkAfter & hasForked.get() == false) {//if bigger than forkAfter we want to split into more threads
 //    			System.out.println("frontierlist: " + frontier);
     			int popper = frontier.pop();
     			//frontier node is taken out and checked if it is a node included in visited
             	if(!visited.contains(popper)) {
             		//if node has not been visited create fork1
             		fork1 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);            	
-            		fork1.fork();}
+            		fork1.fork();
+            		}
             	//repeat taking a frontier node to chech if it is a node included in visited
+            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
             	popper = frontier.pop();
             	if(!visited.contains(popper)) {
             		//if so create fork2 
             		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
             		fork2.fork(); //start fork
             		}
+            	//repeat taking a frontier node to chech if it is a node included in visited
+            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
+            	popper = frontier.pop();
+            	if(!visited.contains(popper)) {
+            		//if so create fork2 
+            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+            		fork2.fork(); //start fork
+            		}
+            	//repeat taking a frontier node to chech if it is a node included in visited
+            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
+            	popper = frontier.pop();
+            	if(!visited.contains(popper)) {
+            		//if so create fork2 
+            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+            		fork2.fork(); //start fork
+            		}      	
+            	hasForked.set(true);//currently we only allow a thread to fork once!
 
 
     		}
@@ -175,35 +198,42 @@ public class ForkJoinSolver
 	                    // nb can be reached from current (i.e., current is nb's predecessor)
 	                    if (!visited.contains(nb))
 	                        predecessor.put(nb, current); //add to predecessor map
-	                }
-	               
-	            }
-    	        	    
-    		}
-    		
+	                }	               
+	            }   	        	    
+    		}    		
     	}
-    	System.out.println("before join " + player); 
+    	//No more nodes to explore, now we need to check and see if we need to wait for forks to join before we return null (a child could have found the heart!)
+    	//check for fork1
     	List<Integer> result1 = null;
-    	if(fork1 != null) { //has fork1 been created
+    	if(fork1 != null) { //check if fork1 been created
     		result1 = fork1.join();}//wait for join on fork1
     	
-//    	System.out.println("between join " + player);
+    	if (result1 != null) { return result1;}//check if result has heartFound
     	
+    	//check for fork2
     	List<Integer> result2 = null; 
-    	if(fork2 != null) //has fork2 been ceated 
+    	if(fork2 != null) //check if fork2 been ceated 
     		{result2 = fork2.join();} //wait for join on fork2
-//    	System.out.println("after join " + player);
     	
-    	if (result1 != null) { //check if result has heartFound
-    		return result1;
-    	}
-    	if (result2 != null) {//check if result has heartFound
-    		return result2;
-    	}
+    	if (result2 != null) {return result2;}//check if fork2's result has heartFound
     	
-        return null;	//if no result != heartfound, return null
+    	//check for fork3
+    	List<Integer> result3 = null; 
+    	if(fork3 != null){//check if fork3 been ceated 
+    		result3 = fork3.join();} //wait for join on fork3
+    	
+    	if (result3 != null){ return result3;}//check if result3 has heartFound
+    	
+    	//check for fork4
+    	List<Integer> result4 = null; 
+    	if(fork4 != null) //check if fork4 been ceated 
+    		{result4 = fork4.join();} //wait for join on fork4
+    	
+    	if (result4 != null) {return result4;}//check if fork4's result has heartFound
+    	//neither you nor your children found the heart, therefore we return null.
+    	return null;
     }
-    
+
     protected List<Integer> pathFromTo(int from, int to) {//had to put this here, otherwise the program complained that predecessor was Null
         List<Integer> path = new LinkedList<>();
         Integer current = to;
