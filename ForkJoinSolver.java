@@ -158,16 +158,16 @@ public class ForkJoinSolver
             	popper = frontier.pop();
             	if(!visited.contains(popper)) {
             		//if so create fork2 
-            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork2.fork(); //start fork
+            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+            		fork3.fork(); //start fork
             		}
             	//repeat taking a frontier node to chech if it is a node included in visited
             	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
             	popper = frontier.pop();
             	if(!visited.contains(popper)) {
             		//if so create fork2 
-            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork2.fork(); //start fork
+            		fork4 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+            		fork4.fork(); //start fork
             		}      	
             	hasForked.set(true);//currently we only allow a thread to fork once!
 
