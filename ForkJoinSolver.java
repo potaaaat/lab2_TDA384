@@ -108,7 +108,7 @@ public class ForkJoinSolver
     @Override
     public List<Integer> compute()
     {
-    	forkAfter = 3;
+    	forkAfter = 1;
     	return parallelSearch();
     }
     
@@ -116,7 +116,7 @@ public class ForkJoinSolver
     private ForkJoinSolver fork2 = null;
     private ForkJoinSolver fork3 = null;
     private ForkJoinSolver fork4 = null; 
-    private AtomicBoolean hasForked = new AtomicBoolean(false);
+    private int hasForked;
 
     private List<Integer> parallelSearch()
     {
@@ -125,51 +125,59 @@ public class ForkJoinSolver
     	//define the forks but not do anything with them yet
     	//if never forked they need to be defined for the joins
 
-
+    	hasForked = 0; //just spawned, no childeren have been created
         //double checking for races before spawning a player
     	if(!visited.contains(start)){
     		player = maze.newPlayer(start); //player is created
     		frontier.push(start);} //start space is added to frontier
-    	//System.out.println("babys first block " + frontier);
     	
     	//keep start where we have 1 player and put the start box in frontier
-    	while(!frontier.isEmpty()) {
-    		
+    	while(!frontier.isEmpty()) {    		
+//    		System.out.println(frontier);
     		if(heartFound.get() == true) {break;}
-    		if(frontier.size() > forkAfter & hasForked.get() == false) {//if bigger than forkAfter we want to split into more threads
+    		if(frontier.size() > forkAfter && hasForked < 3) {//if bigger than forkAfter we want to split into more threads
 //    			System.out.println("frontierlist: " + frontier);
+//    			System.out.println(frontier);
     			int popper = frontier.pop();
     			//frontier node is taken out and checked if it is a node included in visited
-            	if(!visited.contains(popper)) {
+            	if(!visited.contains(popper) && hasForked == 0) { //has thread created first child
             		//if node has not been visited create fork1
             		fork1 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);            	
             		fork1.fork();
+            		hasForked += 1; //thread has forked once
             		}
             	//repeat taking a frontier node to chech if it is a node included in visited
-            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
-            	popper = frontier.pop();
-            	if(!visited.contains(popper)) {
-            		//if so create fork2 
-            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork2.fork(); //start fork
-            		}
+            	if(!frontier.isEmpty() && hasForked == 1) {
+	            	//make sure that the frontier is not empty
+	            	popper = frontier.pop();
+	            	if(!visited.contains(popper)) {//has thread created second child
+	            		//if node has not been visited create fork2 
+	            		fork2 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+	            		fork2.fork(); //start fork
+	            		hasForked += 1; //thread has forked twice
+	            		}
+            	}
             	//repeat taking a frontier node to chech if it is a node included in visited
-            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
-            	popper = frontier.pop();
-            	if(!visited.contains(popper)) {
-            		//if so create fork2 
-            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork3.fork(); //start fork
-            		}
+            	if(!frontier.isEmpty() &&hasForked == 2) {//make sure that the frontier is not empty
+	            	popper = frontier.pop();
+	            	if(!visited.contains(popper)) { //has thread created third child
+	            		//if so create fork2 
+	            		fork3 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+	            		fork3.fork(); //start fork
+	            		hasForked += 1; //thread has forked thrice
+	            		}
+            	}
             	//repeat taking a frontier node to chech if it is a node included in visited
-            	if(frontier.isEmpty()) {hasForked.set(true); break;}//make sure that the frontier is not empty
-            	popper = frontier.pop();
-            	if(!visited.contains(popper)) {
-            		//if so create fork2 
-            		fork4 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
-            		fork4.fork(); //start fork
-            		}      	
-            	hasForked.set(true);//currently we only allow a thread to fork once!
+            	if(!frontier.isEmpty() &&hasForked == 3) {//make sure that the frontier is not empty
+	            	popper = frontier.pop();
+	            	if(!visited.contains(popper)) { ////has thread created fourth child
+	            		//if so create fork2 
+	            		fork4 = new ForkJoinSolver(this.maze, this.forkAfter, popper, this.visited, this.predecessor, this.heartFound);
+	            		fork4.fork(); //start fork
+	            		hasForked += 1;
+	            		//noMoreForks = true;//thread has forked four times, should not fork more times
+	            		}
+            	}
 
 
     		}
