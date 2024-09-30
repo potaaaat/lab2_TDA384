@@ -1,0 +1,6 @@
+How to create your own map:
+
+make a file
+
+run the file: e.g run testMap looks like this
+java -cp src/main amazed.Main maps/testMap.map parallel-2
