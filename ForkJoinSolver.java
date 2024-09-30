@@ -3,14 +3,8 @@ package amazed.solver;
 import amazed.maze.Maze;
 
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Set;
-import java.util.Spliterator;
-import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -29,6 +23,20 @@ import java.util.concurrent.atomic.*;
 public class ForkJoinSolver
     extends SequentialSolver
 {
+	//class variables needed
+	protected int player;
+    protected ConcurrentSkipListSet<Integer> visited;
+    protected int forkAfter;
+    protected AtomicBoolean heartFound;
+    protected ConcurrentHashMap<Integer, Integer> predecessor;
+    protected ConcurrentLinkedDeque<Integer> frontier;
+    protected int beginning;
+    //each thread will only be able to spawn four new forks
+    private ForkJoinSolver fork1 = null;
+    private ForkJoinSolver fork2 = null;
+    private ForkJoinSolver fork3 = null;
+    private ForkJoinSolver fork4 = null; 
+    private int hasForked;
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal.
@@ -58,7 +66,7 @@ public class ForkJoinSolver
         this.forkAfter = forkAfter;
         initStructures();
     }
-    
+    //new constructor for threads 1-3
     public ForkJoinSolver(Maze maze, int forkAfter, int start, ConcurrentSkipListSet<Integer> visited, ConcurrentHashMap<Integer, Integer> predecessor, AtomicBoolean heartFound)
     {
         this(maze);
@@ -70,7 +78,7 @@ public class ForkJoinSolver
         frontier = new ConcurrentLinkedDeque<Integer>(); //new frontier list for thread
         
     }
-    
+    //new constructo for creatig thread 4 (thread 4 takes its parents entire frontier list)
     public ForkJoinSolver(Maze maze, int forkAfter, ConcurrentLinkedDeque<Integer> frontier, ConcurrentSkipListSet<Integer> visited, ConcurrentHashMap<Integer, Integer> predecessor, AtomicBoolean heartFound)
     {
         this(maze);
@@ -82,9 +90,7 @@ public class ForkJoinSolver
         this.frontier = frontier; //take old threads frontier list
         
     }
-    
-
-    
+      
     protected void initStructures() {
     	visited = new ConcurrentSkipListSet<Integer>();
     	//atomic boolean to keep track of when we want to terminate all threads when the goal has been found.
@@ -95,14 +101,6 @@ public class ForkJoinSolver
     	beginning = this.start; //the initial start position
     	
     }
-    protected int player;
-    protected ConcurrentSkipListSet<Integer> visited;
-    protected int forkAfter;
-    protected AtomicBoolean heartFound;
-    protected ConcurrentHashMap<Integer, Integer> predecessor;
-    protected ConcurrentLinkedDeque<Integer> frontier;
-    protected int beginning;
-    /**
 
     /**
      * Searches for and returns the path, as a list of node
@@ -121,24 +119,15 @@ public class ForkJoinSolver
     @Override
     public List<Integer> compute()
     {
-    	forkAfter = 1;
+    	forkAfter = 3;
     	//System.out.println(forkAfter);
     	return parallelSearch();
     	
     }
-    
-    private ForkJoinSolver fork1 = null;
-    private ForkJoinSolver fork2 = null;
-    private ForkJoinSolver fork3 = null;
-    private ForkJoinSolver fork4 = null; 
-    private int hasForked;
 
     private List<Integer> parallelSearch()
     {
-    	
-    	//System.out.println("created " + player); 
-    	//define the forks but not do anything with them yet
-    	//if never forked they need to be defined for the joins
+
     	hasForked = 0; //just spawned, no childeren have been created
         //double checking for races before spawning a player
     	if(!visited.contains(start)){
@@ -147,12 +136,9 @@ public class ForkJoinSolver
     	
     	//keep start where we have 1 player and put the start box in frontier
     	while(!frontier.isEmpty()) {   
-//    		System.out.println(frontier);
-    		if(heartFound.get() == true) {break;}
-    		if(hasForked == 4) {break;} //parent waits if it is done spawning childeren
+    		if(heartFound.get() == true) {break;}//somebody else found the goal - we stop the search
+    		if(hasForked == 4) {break;} //parent exists the whileloop and waits for its children if it is done spawning childeren
     		if(frontier.size() > forkAfter && hasForked < 3) {//if bigger than forkAfter we want to split into more threads
-//    			System.out.println("frontierlist: " + frontier);
-    			System.out.println(frontier);
     			int popper = frontier.pop();
     			//frontier node is taken out and checked if it is a node included in visited
             	if(!visited.contains(popper) && hasForked == 0) { //has thread created first child
@@ -193,11 +179,8 @@ public class ForkJoinSolver
 	            		//noMoreForks = true;//thread has forked four times, should not fork more times
 	            		}
             	}
-
-
     		}
     		else {
-//    			System.out.println("Trying to move");
 	            // get the new node to process
 	            int current = frontier.pop();
 	            // if current node has a goal
